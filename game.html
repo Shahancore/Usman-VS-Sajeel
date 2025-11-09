@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Usman vs Sajeel</title>
+<style>
+body { margin: 0; background: #111; overflow:hidden; }
+canvas { background:#222; display:block; margin:40px auto; border:3px solid #fff; }
+#ui { text-align:center; color:white; font-family:Arial; margin-top:30px; }
+button { padding:12px 24px; font-size:20px; cursor:pointer; }
+</style>
+</head>
+<body>
+
+<div id="ui">
+  <h1 id="title">Usman VS Sajeel</h1>
+  <p style="font-size:18px; margin-top:10px;">
+  Controls:<br>
+  Move Left: A <br>
+ Move Right: D <br>
+  Jump: W <br>
+  Shoot Orb: J <br>
+  Shield: K<br>
+  
+</p>
+
+  <button id="startBtn">Start</button>
+</div>
+
+<canvas id="game" width="800" height="400" style="display:none;"></canvas>
+
+<script>
+// Canvas setup
+const canvas = document.getElementById("game");
+const c = canvas.getContext("2d");
+
+// Set font for HP bars
+c.font = "16px Arial";
+
+let gameState = "menu";
+
+// Images
+const imgU = new Image(); imgU.src = "U.jpg";
+const imgJ = new Image(); imgJ.src = "J.png";
+const imgS = new Image(); imgS.src = "S.jpg";
+const imgOrb = new Image(); imgOrb.src = "orb.png";
+const imgShield = new Image(); imgShield.src = "shield.png";
+
+// Player
+const U = { x:100, y:300, w:80, h:80, vy:0, hp:100, shield:false };
+// Enemy (Bot)
+const J = { x:600, y:300, w:80, h:80, vy:0, hp:100, shield:false };
+
+let orbs = [];
+let botOrbs = [];
+
+// Movement keys
+let keys = { a:false, d:false };
+
+// Gravity
+function applyGravity(ch){
+  ch.vy += 0.7;
+  ch.y += ch.vy;
+  if(ch.y + ch.h > 380){
+    ch.y = 380 - ch.h;
+    ch.vy = 0;
+  }
+}
+
+// Draw characters if image loaded
+function drawChar(ch, img){
+  if(img.width > 0) c.drawImage(img, ch.x, ch.y, ch.w, ch.h);
+  if(ch.shield && imgShield.width > 0){
+    c.drawImage(imgShield, ch.x-10, ch.y-10, ch.w+20, ch.h+20);
+  }
+}
+
+// Draw HP bars
+function drawHP(){
+  c.fillStyle="red"; c.fillRect(20,20, U.hp*2, 20);
+  c.fillStyle="white"; c.fillText("U",20,18);
+
+  c.fillStyle="red"; c.fillRect(760-J.hp*2,20, J.hp*2, 20);
+  c.fillStyle="white"; c.fillText("J",760,18);
+}
+
+// Shoot orb toward target
+function shootOrb(shooter, target, arr){
+  const dx = (target.x + target.w/2) - (shooter.x + shooter.w/2);
+  const dy = (target.y + target.h/2) - (shooter.y + shooter.h/2);
+  const dist = Math.sqrt(dx*dx + dy*dy);
+  const speed = 5;
+  arr.push({
+    x: shooter.x + shooter.w/2,
+    y: shooter.y + shooter.h/2,
+    vx: dx/dist*speed,
+    vy: dy/dist*speed,
+    hit: false
+  });
+}
+
+// Game Loop
+function loop(){
+  if(gameState !== "battle") return;
+
+  c.clearRect(0,0,800,400);
+
+  // Movement
+  if(keys.a) U.x -= 5;
+  if(keys.d) U.x += 5;
+
+  applyGravity(U);
+  applyGravity(J);
+
+  drawChar(U, imgU);
+  drawChar(J, imgJ);
+
+  // Orbs
+  orbs.forEach(o=>{
+    o.x += o.vx;
+    o.y += o.vy;
+    if(imgOrb.width>0) c.drawImage(imgOrb,o.x,o.y,25,25);
+    if(o.x > J.x && o.x < J.x+J.w && o.y > J.y && o.y < J.y+J.h){
+      if(!J.shield) J.hp -= 10;
+      o.hit = true;
+    }
+  });
+  orbs = orbs.filter(o=>!o.hit);
+
+  botOrbs.forEach(o=>{
+    o.x += o.vx;
+    o.y += o.vy;
+    if(imgOrb.width>0) c.drawImage(imgOrb,o.x,o.y,25,25);
+    if(o.x > U.x && o.x < U.x+U.w && o.y > U.y && o.y < U.y+U.h){
+      if(!U.shield) U.hp -= 10;
+      o.hit = true;
+    }
+  });
+  botOrbs = botOrbs.filter(o=>!o.hit);
+
+  // Bot brain
+  if(Math.random()<0.01) J.vy = -12;
+  if(Math.random()<0.02) shootOrb(J,U,botOrbs);
+  if(Math.random()<0.02) J.shield = !J.shield;
+  if(J.x > U.x+5) J.x -= 2;
+  else if(J.x < U.x-5) J.x += 2;
+
+  drawHP();
+
+  if(U.hp<=0) return end(false);
+  if(J.hp<=0) return end(true);
+
+  requestAnimationFrame(loop);
+}
+
+// Controls
+document.addEventListener("keydown",e=>{
+  if(e.key==="a") keys.a=true;
+  if(e.key==="d") keys.d=true;
+  if(e.key==="w") { U.vy = -12; e.preventDefault(); }
+  if(e.key==="j") shootOrb(U,J,orbs);
+  if(e.key==="k") U.shield = true;
+});
+document.addEventListener("keyup",e=>{
+  if(e.key==="a") keys.a=false;
+  if(e.key==="d") keys.d=false;
+  if(e.key==="k") U.shield=false;
+});
+
+// Start button
+document.getElementById("startBtn").onclick = ()=>{
+  document.getElementById("ui").style.display="none";
+  canvas.style.display="block";
+  gameState="battle";
+  canvas.focus();
+  loop();
+};
+
+// End screens
+function end(win){
+  gameState="end";
+  canvas.style.display="none";
+  const ui = document.getElementById("ui");
+  ui.style.display="block";
+  const title = document.getElementById("title");
+  const btn = document.getElementById("startBtn");
+
+  const oldImgs = document.querySelectorAll("#ui img");
+  oldImgs.forEach(img=>img.remove());
+
+  if(win){
+    title.innerText = "Usman WINS! ❤️";
+    const img1 = new Image(); img1.src="U.jpg"; img1.style.width="200px"; ui.appendChild(img1);
+    const img2 = new Image(); img2.src="S.jpg"; img2.style.width="200px"; ui.appendChild(img2);
+  } else {
+    title.innerText = "Sajeel WINS! 😭";
+    const img1 = new Image(); img1.src="U.jpg"; img1.style.width="200px"; ui.appendChild(img1);
+    const img2 = new Image(); img2.src="J.png"; img2.style.width="200px"; ui.appendChild(img2);
+  }
+
+  btn.innerText = "Play Again";
+  btn.onclick = ()=>location.reload();
+}
+</script>
+</body>
+</html>
